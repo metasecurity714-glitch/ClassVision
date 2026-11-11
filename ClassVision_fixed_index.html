@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClassVision — Verified Attendance</title>
+<style>
+:root{--bg:#0b1020;--panel:#141c31;--panel2:#1b2741;--ink:#eef3ff;--muted:#a7b4ce;--line:#2b3958;--accent:#78a6ff;--good:#40d6a0;--bad:#ff7d89}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(140deg,#0b1020,#111b31);color:var(--ink);font:15px system-ui,Segoe UI,Arial}
+.wrap{max-width:1100px;margin:auto;padding:22px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#78a6ff,#9d83ff);display:grid;place-items:center;color:#081126;font-weight:900;font-size:20px}.brand h1{font-size:22px;margin:0}.muted{color:var(--muted)}.card{background:rgba(20,28,49,.96);border:1px solid var(--line);border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 12px 35px #0002}.hidden{display:none!important}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.stat{background:var(--panel2);padding:17px;border-radius:14px}.stat strong{display:block;font-size:27px;margin-top:5px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}label{display:block;color:var(--muted);font-size:13px;margin:12px 0 6px}input,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0c1427;color:var(--ink);font:inherit}button{border:0;border-radius:11px;padding:11px 15px;background:var(--accent);color:#071126;font-weight:700;cursor:pointer}button.secondary{background:#293957;color:var(--ink)}button.danger{background:#592c3a;color:#ffe9ec}button:disabled{opacity:.5;cursor:not-allowed}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.tabs button.active{outline:2px solid var(--accent);background:#293957;color:var(--ink)}.view{display:none}.view.active{display:block}.status{padding:11px 13px;border-radius:10px;background:#202d48;margin:12px 0}.ok{color:var(--good)}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line)}th{color:var(--muted)}.tablewrap{overflow:auto}.small{font-size:12px}.right{margin-left:auto}
+@media(max-width:600px){.wrap{padding:14px}.card{padding:15px}.brand h1{font-size:19px}}
+</style></head>
+<body><main class="wrap">
+<header class="brand"><div class="logo">CV</div><div><h1>ClassVision</h1><div class="muted small">Verified attendance · Local browser edition</div></div></header>
+
+<section id="setup" class="card hidden"><h2>Create your ClassVision login</h2><p class="muted">This is a simple local browser gate, not secure account authentication.</p>
+<label>Username</label><input id="newUser" autocomplete="username" placeholder="Choose a username">
+<label>Password</label><input id="newPass" type="password" autocomplete="new-password" placeholder="At least 8 characters">
+<label>Confirm password</label><input id="confirmPass" type="password" autocomplete="new-password">
+<div class="row" style="margin-top:16px"><button id="createLogin">Create login</button></div><div id="setupMsg" class="status"></div></section>
+<section id="login" class="card hidden"><h2>Welcome back</h2><p class="muted">Sign in to open your attendance dashboard.</p>
+<label>Username</label><input id="loginUser" autocomplete="username"><label>Password</label><input id="loginPass" type="password" autocomplete="current-password">
+<div class="row" style="margin-top:16px"><button id="signIn">Sign in</button></div><div id="loginMsg" class="status"></div></section>
+
+<div id="app" class="hidden">
+<div class="row"><div><h2 style="margin:0">Attendance dashboard</h2><div class="muted small" id="hello"></div></div><button class="secondary right" id="logout">Log out</button></div>
+<div class="grid"><div class="stat"><span class="muted">Registered students</span><strong id="totalStudents">0</strong></div><div class="stat"><span class="muted">Marked present today</span><strong id="presentToday">0</strong></div><div class="stat"><span class="muted">Attendance records</span><strong id="totalRecords">0</strong></div></div>
+<nav class="tabs"><button class="active" data-tab="enroll">Register student</button><button data-tab="scan">Mark attendance</button><button data-tab="records">Attendance records</button><button data-tab="students">Students</button><button data-tab="privacy">Privacy & settings</button></nav>
+
+<section class="view active" id="enroll"><div class="card"><h3>Register a student</h3><p class="muted">Register class details only. This version does not collect face images or biometric templates.</p>
+<div class="grid"><div><label>Full name</label><input id="studentName" placeholder="Student name"></div><div><label>Roll number (must be unique)</label><input id="studentRoll" placeholder="e.g. 24CSE001"></div><div><label>Department / class</label><input id="studentDept" placeholder="e.g. CSE"></div></div>
+<div class="row" style="margin-top:16px"><button id="saveStudent">Save student</button><button id="resetEnroll" class="secondary">Reset form</button></div><div id="enrollStatus" class="status">Enter student details and save.</div></div></section>
+
+<section class="view" id="scan"><div class="card"><h3>Verify and mark attendance</h3><p class="muted">Select the student using their roll number, verify the displayed name against your class list or student ID, then confirm. Attendance is never marked automatically.</p>
+<label>Subject / session</label><input id="sessionName" placeholder="e.g. Applied Chemistry">
+<label>Student roll number</label><select id="studentPicker"><option value="">Register students first</option></select>
+<div class="status" id="selectedStudent">Choose a student to review their details.</div>
+<div class="row"><button id="markAttendance">Confirm and mark present</button></div><div id="scanStatus" class="status">No attendance has been marked yet in this session.</div>
+<div class="grid"><div class="stat"><span class="muted">Present in this session today</span><strong id="sessionPresent">0</strong></div><div class="stat"><span class="muted">Session</span><strong id="sessionLabel" style="font-size:18px">Not started</strong></div></div></div></section>
+
+<section class="view" id="records"><div class="card"><div class="row"><h3>Attendance records</h3><button id="exportCsv" class="right">Export CSV</button></div><div class="tablewrap"><table><thead><tr><th>Date & time</th><th>Name</th><th>Roll no.</th><th>Subject</th><th>Status</th></tr></thead><tbody id="recordsBody"></tbody></table></div></div></section>
+<section class="view" id="students"><div class="card"><h3>Registered students</h3><div class="tablewrap"><table><thead><tr><th>Name</th><th>Roll no.</th><th>Department</th><th>Action</th></tr></thead><tbody id="studentsBody"></tbody></table></div></div></section>
+<section class="view" id="privacy"><div class="card"><h3>Privacy & settings</h3><p class="muted">Student details and attendance records are stored in this browser's local storage and are not uploaded to a server by this app. Anyone with access to this browser profile may be able to access them. Clearing browser site data may erase them.</p><div class="row"><button class="danger" id="deleteStudents">Delete all student data</button><button class="danger" id="deleteRecords">Delete attendance records</button></div><p class="small muted">This version intentionally does not perform face recognition. Use a student ID or supervised roll-number check to avoid automatic misidentification. A teacher should supervise attendance changes.</p></div></section>
+</div></main>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const DBKEY='classvision_data_v1',AUTHKEY='classvision_auth_v1';
+let data={students:[],records:[]};
+function todayKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function loadData(){
+  try{data=JSON.parse(localStorage.getItem(DBKEY))||{students:[],records:[]}}catch(e){data={students:[],records:[]}}
+  if(!Array.isArray(data.students))data.students=[];
+  if(!Array.isArray(data.records))data.records=[];
+  // Keep existing attendance records; discard old biometric descriptors from student entries.
+  data.students=data.students.map(s=>({name:String(s.name||''),roll:String(s.roll||''),dept:String(s.dept||'')}));
+  localStorage.setItem(DBKEY,JSON.stringify(data));
+}
+function saveData(){localStorage.setItem(DBKEY,JSON.stringify(data));refreshUI()}
+function auth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))}catch(e){return null}}
+function showAuth(){const a=auth();$('setup').classList.toggle('hidden',!!a);$('login').classList.toggle('hidden',!a);$('app').classList.add('hidden')}
+$('createLogin').onclick=()=>{const u=$('newUser').value.trim(),p=$('newPass').value,c=$('confirmPass').value;if(u.length<3){$('setupMsg').textContent='Username must be at least 3 characters.';return}if(p.length<8){$('setupMsg').textContent='Use at least 8 characters for the password.';return}if(p!==c){$('setupMsg').textContent='Passwords do not match.';return}localStorage.setItem(AUTHKEY,JSON.stringify({username:u,password:p}));$('setupMsg').textContent='Login created. Please sign in.';showAuth()};
+$('signIn').onclick=()=>{const a=auth();if(a&&$('loginUser').value.trim()===a.username&&$('loginPass').value===a.password){$('loginMsg').textContent='Signed in.';$('login').classList.add('hidden');$('app').classList.remove('hidden');$('hello').textContent='Signed in as '+a.username;loadData();refreshUI()}else $('loginMsg').textContent='Incorrect username or password.'};
+$('logout').onclick=()=>{ $('app').classList.add('hidden');showAuth() };
+function updateSessionCount(){const sub=$('sessionName').value.trim()||'General';$('sessionPresent').textContent=data.records.filter(r=>r.date===todayKey()&&r.subject===sub).length}
+function updateSelected(){const s=data.students.find(x=>x.roll===$('studentPicker').value);$('selectedStudent').textContent=s?'Selected student: '+s.name+' · Roll '+s.roll+(s.dept?' · '+s.dept:''):'Choose a student to review their details.'}
+function refreshUI(){
+ if(!$('app')||$('app').classList.contains('hidden'))return;
+ const today=todayKey();
+ $('totalStudents').textContent=data.students.length;
+ $('presentToday').textContent=data.records.filter(r=>r.date===today).length;
+ $('totalRecords').textContent=data.records.length;
+ $('recordsBody').innerHTML=data.records.slice().reverse().map(r=>'<tr><td>'+esc(new Date(r.time).toLocaleString())+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.roll)+'</td><td>'+esc(r.subject)+'</td><td>Present</td></tr>').join('')||'<tr><td colspan="5">No records yet.</td></tr>';
+ $('studentsBody').innerHTML=data.students.map(s=>'<tr><td>'+esc(s.name)+'</td><td>'+esc(s.roll)+'</td><td>'+esc(s.dept)+'</td><td><button class="danger" data-delete-roll="'+esc(encodeURIComponent(s.roll))+'">Delete</button></td></tr>').join('')||'<tr><td colspan="4">No students registered.</td></tr>';
+ const previous=$('studentPicker').value;
+ $('studentPicker').innerHTML='<option value="">Select roll number</option>'+data.students.slice().sort((a,b)=>a.roll.localeCompare(b.roll)).map(s=>'<option value="'+esc(s.roll)+'">'+esc(s.roll)+' — '+esc(s.name)+'</option>').join('');
+ if(data.students.some(s=>s.roll===previous))$('studentPicker').value=previous;
+ $('sessionLabel').textContent=$('sessionName').value.trim()||'Not started';
+ updateSessionCount();updateSelected();
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));refreshUI()});
+$('saveStudent').onclick=()=>{const name=$('studentName').value.trim(),roll=$('studentRoll').value.trim(),dept=$('studentDept').value.trim();if(!name||!roll||!dept){$('enrollStatus').textContent='Fill in name, roll number and department.';return}if(data.students.some(s=>s.roll.toLowerCase()===roll.toLowerCase())){$('enrollStatus').textContent='That roll number is already registered.';return}data.students.push({name,roll,dept});saveData();$('enrollStatus').textContent='Student registered.';resetEnroll()};
+function resetEnroll(){$('studentName').value='';$('studentRoll').value='';$('studentDept').value=''}
+$('resetEnroll').onclick=resetEnroll;
+$('studentPicker').onchange=updateSelected;
+$('sessionName').oninput=()=>{refreshUI()};
+$('markAttendance').onclick=()=>{
+ const s=data.students.find(x=>x.roll===$('studentPicker').value);
+ if(!s){$('scanStatus').textContent='Select a registered student first.';return}
+ const subject=$('sessionName').value.trim()||'General',date=todayKey();
+ if(!confirm('Verify that this is '+s.name+' (roll '+s.roll+') and that the student is physically present. Mark attendance?'))return;
+ if(data.records.some(r=>r.roll===s.roll&&r.subject===subject&&(r.date||todayKey())===date)){$('scanStatus').textContent=s.name+' is already marked present for this session today.';return}
+ data.records.push({name:s.name,roll:s.roll,subject,time:new Date().toISOString(),date});
+ saveData();$('scanStatus').textContent='Attendance confirmed for '+s.name+' · '+s.roll+'.';updateSessionCount();
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-delete-roll]');if(!b)return;const roll=decodeURIComponent(b.dataset.deleteRoll);if(confirm('Delete this student? Existing attendance records will be preserved.')){data.students=data.students.filter(s=>s.roll!==roll);saveData()}});
+$('exportCsv').onclick=()=>{const rows=[['Date & time','Name','Roll no.','Subject','Status'],...data.records.map(r=>[new Date(r.time).toLocaleString(),r.name,r.roll,r.subject,'Present'])];const csv=rows.map(row=>row.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');const a=document.createElement('a'),url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv'}));a.href=url;a.download='classvision-attendance.csv';a.click();URL.revokeObjectURL(url)};
+$('deleteStudents').onclick=()=>{if(confirm('Delete all registered students? Existing attendance records will be preserved.')){data.students=[];saveData()}};
+$('deleteRecords').onclick=()=>{if(confirm('Delete all attendance records?')){data.records=[];saveData()}};
+loadData();showAuth();
+</script></body></html>
