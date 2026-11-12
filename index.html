@@ -6,65 +6,64 @@
   <meta name="theme-color" content="#101827">
   <title>ClassVision — Face Attendance</title>
   <link rel="stylesheet" href="style.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-  <script defer src="app.js"></script>
 </head>
 <body>
-<header class="top">
-  <div><div class="brand">ClassVision</div><div class="sub">Consent-based face attendance · local browser storage</div></div>
-  <span id="modelStatus" class="status">Loading recognition models…</span>
+<header class="topbar">
+  <a class="brand" href="#"><span class="brand-mark">CV</span><span>ClassVision<small>SMART ATTENDANCE</small></span></a>
+  <span class="privacy-tag">Local-first · Browser based</span>
 </header>
-<main>
-  <section class="panel">
-    <h2>1. Register students</h2>
-    <p class="hint">For adults who have explicitly agreed to face enrollment. Register each person on this device. Use clear, front-facing samples in even lighting.</p>
-    <div class="formgrid">
-      <label>Student name<input id="studentName" maxlength="70" placeholder="e.g. A. Kumar"></label>
-      <label>Student ID<input id="studentId" maxlength="30" placeholder="e.g. CSE-001"></label>
-    </div>
-    <label class="consent"><input type="checkbox" id="consent"> I confirm this adult has been informed and has explicitly consented to face-based attendance.</label>
-    <div class="actions">
-      <button id="startEnroll" disabled>Start camera for registration</button>
-      <button id="captureSample" disabled>Capture sample <span id="sampleCount">(0/3)</span></button>
-      <button id="saveStudent" disabled>Save student</button>
-      <button id="stopEnroll" class="secondary" disabled>Stop camera</button>
-    </div>
-    <p id="enrollMessage" class="message" aria-live="polite">Waiting for models to load.</p>
-    <video id="enrollVideo" autoplay muted playsinline class="video smallvideo"></video>
+<main class="container">
+  <section class="hero">
+    <div><p class="eyebrow">CLASSROOM MANAGEMENT</p><h1>Attendance, made <em>smarter.</em></h1>
+    <p class="sub">Register students, scan faces live, and keep session-wise attendance records.</p></div>
+    <div class="hero-stat"><strong id="studentCount">0</strong><span>Registered students</span></div>
   </section>
 
-  <section class="panel">
-    <h2>2. Live attendance scanner</h2>
-    <p class="hint">High-confidence matches are marked after repeated frame confirmation. Uncertain matches are not marked automatically. Camera frames are processed in this browser and are not uploaded by this app.</p>
-    <div class="actions">
-      <button id="startScan" disabled>Start attendance camera</button>
-      <button id="switchCamera" class="secondary" disabled>Switch front / back</button>
-      <button id="stopScan" class="secondary" disabled>Stop scanner</button>
-      <label class="inline">Camera<select id="cameraFacing"><option value="environment">Back camera</option><option value="user">Front camera</option></select></label>
-    </div>
-    <video id="scanVideo" autoplay muted playsinline class="video"></video>
-    <canvas id="overlay"></canvas>
-    <p id="scanMessage" class="message" aria-live="polite">Scanner stopped.</p>
-    <div id="scanEvents" class="events"></div>
+  <div id="notice" class="notice" role="status">Loading face recognition models…</div>
+
+  <section class="grid">
+    <article class="panel">
+      <div class="panel-head"><div><p class="eyebrow">01 / DIRECTORY</p><h2>Register student</h2></div><span class="step">01</span></div>
+      <p class="muted">Enter the student's details and capture five clear face samples.</p>
+      <form id="registerForm">
+        <div class="field-grid">
+          <label>Full name<input id="studentName" required maxlength="80" placeholder="e.g. Aditi Sharma"></label>
+          <label>Roll number<input id="rollNo" required maxlength="30" placeholder="e.g. 23CSE041"></label>
+          <label>Enrolment number<input id="enrolmentNo" required maxlength="40" placeholder="University enrolment ID"></label>
+          <label>Branch<input id="branch" required maxlength="50" placeholder="e.g. CSE"></label>
+        </div>
+        <label class="consent"><input type="checkbox" id="consent" required> I have informed the student and obtained their explicit consent to collect and use face data for attendance.</label>
+        <div class="capture-row"><button class="btn btn-secondary" id="captureSample" type="button" disabled>Capture face sample <span id="sampleCount">0/5</span></button><span class="muted small" id="captureHint">Camera must be running.</span></div>
+        <button class="btn btn-primary full" id="saveStudent" type="submit" disabled>Save student profile</button>
+      </form>
+    </article>
+
+    <article class="panel scanner-panel">
+      <div class="panel-head"><div><p class="eyebrow">02 / LIVE SCANNER</p><h2>Take attendance</h2></div><span class="live-pill"><i></i> LIVE</span></div>
+      <label>Attendance session name<input id="sessionName" required maxlength="80" placeholder="e.g. Data Structures — Lecture 04"></label>
+      <div class="video-wrap">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+        <div class="video-placeholder" id="videoPlaceholder"><span>◎</span><b>Camera preview</b><small>Start the camera to begin scanning</small></div>
+        <div class="scan-label" id="scanLabel">CAMERA OFF</div>
+      </div>
+      <div class="scanner-actions"><button class="btn btn-primary" id="startCamera" disabled>Start camera</button><button class="btn btn-secondary" id="stopCamera" disabled>Stop</button><button class="btn btn-secondary" id="startAttendance" disabled>Start attendance</button></div>
+      <p class="muted small" id="scanStatus">Models are loading. Please wait.</p>
+      <div class="legend"><span><i class="green"></i> Recognized</span><span><i class="amber"></i> Checking</span><span><i class="red"></i> Unknown</span></div>
+    </article>
   </section>
 
-  <section class="panel">
-    <h2>3. Attendance records</h2>
-    <div class="actions">
-      <button id="exportCsv" class="secondary">Export today's CSV</button>
-      <button id="exportAll" class="secondary">Export all CSV</button>
-      <button id="clearToday" class="danger">Clear today's attendance</button>
-    </div>
-    <div class="tablewrap"><table><thead><tr><th>Time</th><th>Student</th><th>ID</th><th>Status</th></tr></thead><tbody id="attendanceRows"></tbody></table></div>
+  <section class="panel records">
+    <div class="panel-head"><div><p class="eyebrow">03 / RECORDS</p><h2>Attendance log</h2></div><button class="btn btn-secondary" id="exportCsv">Export CSV</button></div>
+    <div class="table-scroll"><table><thead><tr><th>Student</th><th>Roll no.</th><th>Session</th><th>Date</th><th>Time</th><th>Status</th></tr></thead><tbody id="attendanceRows"><tr><td colspan="6" class="empty">No attendance records yet.</td></tr></tbody></table></div>
   </section>
-
-  <section class="panel">
-    <h2>Registered students <span id="studentTotal" class="count">0</span></h2>
-    <div id="studentList" class="students"></div>
-    <p class="hint warning">Privacy: this browser stores face descriptors (biometric data) and attendance records on this device. Anyone with access to this browser profile may be able to access them. Do not use a shared/public device. Use the Clear local data button before transferring or disposing of the device.</p>
-    <button id="clearData" class="danger">Clear all local student and attendance data</button>
+  <section class="panel records">
+    <div class="panel-head"><div><p class="eyebrow">04 / STUDENTS</p><h2>Student directory</h2></div><button class="btn btn-secondary" id="exportStudents">Export students</button></div>
+    <div class="table-scroll"><table><thead><tr><th>Name</th><th>Roll no.</th><th>Enrolment no.</th><th>Branch</th><th>Samples</th></tr></thead><tbody id="studentRows"><tr><td colspan="5" class="empty">No students registered yet.</td></tr></tbody></table></div>
   </section>
+  <footer><p>ClassVision · Prototype for educational use</p><p>Face templates are stored in this browser only. Use a secure device, restrict access, and provide a non-biometric attendance alternative.</p></footer>
 </main>
-<footer>ClassVision · GitHub Pages build · HTTPS camera access required</footer>
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script defer src="app.js"></script>
 </body>
 </html>

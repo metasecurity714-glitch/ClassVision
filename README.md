@@ -1,32 +1,41 @@
-# ClassVision — Face Attendance (adult consent build)
+# ClassVision — Smart Face Attendance
 
-## Important
-This demo is intended only for adult students who have explicitly consented to biometric enrollment and face-based attendance. Do not enroll anyone without informed consent. Provide a non-biometric attendance alternative.
+A browser-based attendance prototype with student registration, live face matching, named bounding boxes, session-wise attendance and CSV export.
 
-No face-recognition system is error-free. Lighting, camera quality, pose, masks, similar-looking faces and enrollment quality can cause missed or incorrect matches. This build uses conservative matching thresholds and requires a stable match across multiple frames, but it can still make mistakes. Review records regularly.
+## Run it
+1. Download and extract this ZIP.
+2. Open the folder in VS Code or another editor.
+3. Serve the folder over HTTPS or localhost. For example, with Python installed:
+   ```bash
+   python -m http.server 8000
+   ```
+4. Open `http://localhost:8000` in Chrome or Edge.
+5. Allow camera permission. The face recognition models load from a CDN, so internet is required.
 
-## What it includes
-- Adult student registration using name, ID and three face samples.
-- In-browser face matching using face-api.js.
-- Front/back camera selection.
-- Repeated-frame confirmation before attendance is recorded.
-- Ambiguous matches are left unmarked.
-- Duplicate prevention per student per day.
-- Today's and all-records CSV export.
-- Student deletion and local data wipe.
-- IndexedDB storage on the current browser/device.
+Opening `index.html` directly using `file://` may block camera access. GitHub Pages is also supported because it serves over HTTPS.
 
-## Publish on GitHub Pages
-1. Download and extract the ZIP.
-2. Upload `index.html`, `style.css`, `app.js`, and `README.md` to the repository root, replacing the old files.
-3. In GitHub, open **Settings → Pages** and confirm the deployment source is your main branch and root folder.
-4. Open the published `https://...github.io/.../` URL in Chrome.
-5. Allow camera permission.
+## Features
+- Student fields: full name, roll number, enrolment number and branch.
+- Capture five face descriptor samples per student.
+- Live face detection with green recognized, amber uncertain and red unknown boxes.
+- Name and roll number appear above confidently matched faces.
+- Attendance session name is required before scanning.
+- Repeated attendance is prevented for the same student, date and session.
+- Student and attendance CSV exports.
+- Student face descriptors stored in browser IndexedDB; attendance records stored in browser localStorage.
 
-## Requirements and limitations
-- HTTPS is required for camera access; GitHub Pages provides HTTPS.
-- Internet is required to load face-api.js and its model weights from the CDN.
-- This is a static, single-browser prototype. Student records and face descriptors stay in that browser's IndexedDB; they do not sync across devices and are not protected by server-side authentication.
-- Clearing browser site data may delete the records. Export attendance regularly.
-- The app does not upload camera frames or face descriptors to a server, but anyone with access to the unlocked browser profile may access local app data.
-- For production use, obtain appropriate legal/privacy advice, use secure access controls, encryption and audited retention/deletion procedures. Consider a non-biometric option.
+## Accuracy notes
+This is a prototype, not a certified biometric attendance system. Face matching can be affected by lighting, camera quality, pose, occlusion and similar-looking faces. The matching threshold is a configurable heuristic, not a guarantee. Test in your actual classroom and maintain a manual correction/attendance alternative. The app uses face-api.js descriptor matching, not a trained institutional identity model.
+
+## Privacy and security
+- Obtain explicit, informed consent before collecting face data.
+- Explain purpose, retention period, access, and deletion procedure.
+- Do not use this prototype for high-stakes decisions without independent validation and legal/privacy review.
+- Data is stored only in the current browser profile on the device. Clearing site data removes it; it does not sync to a server.
+- Do not share a browser profile or device containing student biometric data.
+- This prototype does not include authentication, encryption at rest, server backup, or an administrator deletion workflow.
+
+## Files
+- `index.html` — application layout
+- `style.css` — responsive dark UI
+- `app.js` — camera, face matching, browser storage and exports
