@@ -1,32 +1,191 @@
-const $=id=>document.getElementById(id), DB="classvision-local", today=()=>{let d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}, uid=()=>crypto.randomUUID?crypto.randomUUID():"cv-"+Date.now()+"-"+Math.random(), esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])), initials=s=>s.split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase();
-let database,scanner=null,running=false,currentQR=null,toastTimer;
-function openDB(){return new Promise((ok,no)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=()=>{let d=r.result,s=d.createObjectStore("students",{keyPath:"id"});s.createIndex("roll","roll",{unique:true});let a=d.createObjectStore("attendance",{keyPath:"id"});a.createIndex("date","date");a.createIndex("studentDate",["studentId","date"],{unique:true})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
-function all(n){return new Promise((ok,no)=>{let r=database.transaction(n).objectStore(n).getAll();r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
-function get(n,k){return new Promise((ok,no)=>{let r=database.transaction(n).objectStore(n).get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})}
-function put(n,v){return new Promise((ok,no)=>{let r=database.transaction(n,"readwrite").objectStore(n).put(v);r.onsuccess=()=>ok();r.onerror=()=>no(r.error)})}
-function remove(n,k){return new Promise((ok,no)=>{let r=database.transaction(n,"readwrite").objectStore(n).delete(k);r.onsuccess=()=>ok();r.onerror=()=>no(r.error)})}
-function notify(s){let t=$("toast");t.textContent=s;t.style.display="block";clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.style.display="none",2400)}
-function cell(s){return `<span class="avatar">${esc(initials(s.name))}</span><b>${esc(s.name)}</b>`}
-function page(p){document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.id===p));document.querySelectorAll("[data-page]").forEach(x=>x.classList.toggle("selected",x.dataset.page===p));$("heading").textContent=({home:"Overview",students:"Students",scan:"QR Scanner",records:"Attendance records"})[p];if(p==="home")overview();if(p==="students")students();if(p==="scan")scanList();if(p==="records")records();window.scrollTo(0,0)}
-document.addEventListener("click",e=>{let n=e.target.closest("[data-page],[data-jump]");if(n)page(n.dataset.page||n.dataset.jump);let q=e.target.closest("[data-qr]");if(q)showQR(q.dataset.qr);let d=e.target.closest("[data-del]");if(d)deleteStudent(d.dataset.del);let r=e.target.closest("[data-remove]");if(r)removeRecord(r.dataset.remove)});
-async function overview(){let ss=await all("students"),rr=(await all("attendance")).filter(x=>x.date===today()),p=new Set(rr.map(x=>x.studentId)).size,t=ss.length,rate=t?Math.round(p/t*100):0;$("total").textContent=t;$("present").textContent=p;$("absent").textContent=Math.max(0,t-p);$("rate").textContent=rate+"%";$("bar").style.width=rate+"%";$("summary").textContent=`${p} present · ${Math.max(0,t-p)} remaining`;rr.sort((a,b)=>b.time.localeCompare(a.time));$("recent").innerHTML=(await Promise.all(rr.slice(0,6).map(async r=>{let s=await get("students",r.studentId);return s?`<tr><td>${cell(s)}</td><td>${esc(s.roll)}</td><td>${new Date(r.time).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</td><td><span class="tag">Present</span></td></tr>`:""}))).join("")||'<tr><td colspan="4" class="empty">No scans today.</td></tr>'}
-async function students(){let ss=(await all("students")).sort((a,b)=>a.name.localeCompare(b.name)),q=$("search").value.toLowerCase();let list=ss.filter(s=>(s.name+" "+s.roll+" "+s.dept).toLowerCase().includes(q));$("noStudents").hidden=list.length>0;$("studentRows").innerHTML=list.map(s=>`<tr><td>${cell(s)}</td><td>${esc(s.roll)}</td><td>${esc(s.dept||"—")}</td><td><button class="smallbtn" data-qr="${s.id}">View QR</button></td><td><button class="smallbtn danger" data-del="${s.id}">Delete</button></td></tr>`).join("")}
-async function records(){let date=$("filterDate").value||today();$("filterDate").value=date;let ss=await all("students"),rr=(await all("attendance")).filter(x=>x.date===date).sort((a,b)=>b.time.localeCompare(a.time));$("noRecords").hidden=rr.length>0;$("recordRows").innerHTML=rr.map(r=>{let s=ss.find(x=>x.id===r.studentId);return s?`<tr><td>${cell(s)}</td><td>${esc(s.roll)}</td><td>${r.date}</td><td>${new Date(r.time).toLocaleTimeString()}</td><td><span class="tag">Present</span></td><td><button class="smallbtn danger" data-remove="${r.id}">Remove</button></td></tr>`:""}).join("")}
-async function scanList(){let ss=await all("students"),rr=(await all("attendance")).filter(x=>x.date===today()).sort((a,b)=>b.time.localeCompare(a.time));$("scanList").innerHTML=rr.map(r=>{let s=ss.find(x=>x.id===r.studentId);return s?`<p>${cell(s)} <span class="tag">Present</span> <small>${new Date(r.time).toLocaleTimeString()}</small></p>`:""}).join("")||"No scans yet."}
-$("addToggle").onclick=()=>{$("addBox").hidden=false;$("name").focus()};$("cancel").onclick=()=>{$("addBox").hidden=true};
-$("studentForm").onsubmit=async e=>{e.preventDefault();let name=$("name").value.trim(),roll=$("roll").value.trim(),dept=$("dept").value.trim(),ss=await all("students");if(ss.some(s=>s.roll.toLowerCase()===roll.toLowerCase()))return notify("Roll number already exists.");await put("students",{id:uid(),name,roll,dept});e.target.reset();$("addBox").hidden=true;notify("Student registered and QR pass created.");students();overview()};
-$("search").oninput=students;
-async function showQR(id){let s=await get("students",id);if(!s)return;if(!window.QRCode)return notify("QR library unavailable. Check internet and reload.");currentQR=s;$("qrName").textContent=s.name;$("qrMeta").textContent=s.roll+(s.dept?" · "+s.dept:"");$("qr").innerHTML="";new QRCode($("qr"),{text:"CLASSVISION:"+s.id,width:210,height:210,correctLevel:QRCode.CorrectLevel.H});$("modal").hidden=false}
-$("closeModal").onclick=()=>$("modal").hidden=true;$("modal").onclick=e=>{if(e.target===$("modal"))$("modal").hidden=true};
-$("download").onclick=()=>{let c=$("qr").querySelector("canvas");if(!c)return;let a=document.createElement("a");a.href=c.toDataURL();a.download="ClassVision-"+currentQR.roll+".png";a.click()};
-$("print").onclick=()=>{let c=$("qr").querySelector("canvas");if(!c)return;let w=open("","_blank");if(!w)return notify("Allow pop-ups to print.");w.document.write(`<h2>${esc(currentQR.name)}</h2><p>${esc(currentQR.roll)}</p><img src="${c.toDataURL()}"><script>onload=()=>print()<\/script>`);w.document.close()};
-async function deleteStudent(id){let s=await get("students",id);if(!s||!confirm(`Delete ${s.name} and their attendance records?`))return;await remove("students",id);for(let r of await all("attendance"))if(r.studentId===id)await remove("attendance",r.id);students();overview();notify("Student deleted.")};
-async function removeRecord(id){if(!confirm("Remove this attendance entry?"))return;await remove("attendance",id);records();overview();scanList()}
-async function mark(id){let s=await get("students",id);if(!s){$("feedback").textContent="Unknown QR code — not a registered student.";return}let exists=(await all("attendance")).some(r=>r.studentId===id&&r.date===today());if(exists){$("feedback").textContent=s.name+" is already marked present today.";return}await put("attendance",{id:uid(),studentId:id,date:today(),time:new Date().toISOString(),session:$("session").value.trim()||"Class attendance"});$("feedback").textContent=s.name+" marked present.";notify(s.name+" marked present.");scanList();overview()}
-$("start").onclick=async()=>{if(!window.Html5Qrcode)return notify("Scanner library did not load. Check internet.");if(running)return;try{scanner=new Html5Qrcode("reader");await scanner.start({facingMode:"environment"},{fps:10,qrbox:{width:220,height:220}},txt=>{if(txt.startsWith("CLASSVISION:"))mark(txt.slice(12));else $("feedback").textContent="Not a ClassVision student QR pass."},()=>{});running=true;$("start").disabled=true;$("stop").disabled=false;$("feedback").textContent="Camera active. Scan a student pass."}catch(err){$("feedback").textContent="Camera failed. Use HTTPS and allow camera access. "+(err.message||"");notify("Camera unavailable — check Chrome permissions.")}};
-$("stop").onclick=async()=>{if(scanner&&running){try{await scanner.stop();await scanner.clear()}catch(e){}}scanner=null;running=false;$("start").disabled=false;$("stop").disabled=true;$("feedback").textContent="Camera stopped."};
-$("clear").onclick=async()=>{if(!confirm("Delete all attendance records for today?"))return;for(let r of await all("attendance"))if(r.date===today())await remove("attendance",r.id);scanList();overview();notify("Today's attendance cleared.")};
-$("filterDate").onchange=records;
-$("export").onclick=async()=>{let ss=await all("students"),rr=await all("attendance"),rows=[["Student name","Roll number","Department","Date","Time","Session","Status"]];rr.forEach(r=>{let s=ss.find(x=>x.id===r.studentId);if(s)rows.push([s.name,s.roll,s.dept,r.date,new Date(r.time).toLocaleTimeString(),r.session,"Present"])});let csv=rows.map(row=>row.map(v=>'"'+String(v??"").replace(/"/g,'""')+'"').join(",")).join("\r\n"),url=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv"})),a=document.createElement("a");a.href=url;a.download="classvision-attendance.csv";a.click();URL.revokeObjectURL(url);notify("CSV exported.")};
-window.addEventListener("beforeunload",()=>{if(running)scanner.stop().catch(()=>{})});
-(async()=>{try{database=await openDB();$("today").textContent=new Date().toLocaleDateString(undefined,{weekday:"short",day:"numeric",month:"short",year:"numeric"});$("filterDate").value=today();await overview();await students();await records();await scanList()}catch(e){alert("Could not open browser storage. Please use the latest Chrome.")}})();
+(() => {
+"use strict";
+const $ = id => document.getElementById(id);
+const DB_NAME = "classvision_face_db_v1";
+const STORE = "records";
+let db, modelsReady = false, enrollStream = null, scanStream = null;
+let samples = [], enrollDescriptor = null, scanTimer = null, facing = "environment";
+const streaks = new Map(), recentlyMarked = new Set();
+
+function todayKey(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;}
+function timeText(ts){return new Date(ts).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});}
+function openDB(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:"key"});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+function allRecords(){return new Promise((resolve,reject)=>{const r=db.transaction(STORE).objectStore(STORE).getAll();r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+function putRecord(value){return new Promise((resolve,reject)=>{const r=db.transaction(STORE,"readwrite").objectStore(STORE).put(value);r.onsuccess=()=>resolve();r.onerror=()=>reject(r.error);});}
+function deleteRecord(key){return new Promise((resolve,reject)=>{const r=db.transaction(STORE,"readwrite").objectStore(STORE).delete(key);r.onsuccess=()=>resolve();r.onerror=()=>reject(r.error);});}
+function stopStream(stream){if(stream)stream.getTracks().forEach(t=>t.stop());}
+function setMsg(id,msg){$(id).textContent=msg;}
+function studentKey(id){return "student:"+id.trim().toLowerCase();}
+function attendanceKey(id,date=todayKey()){return `attendance:${date}:${id.trim().toLowerCase()}`;}
+async function getStudents(){return (await allRecords()).filter(x=>x.type==="student");}
+async function getAttendance(){return (await allRecords()).filter(x=>x.type==="attendance");}
+
+async function loadModels(){
+  try{
+    const base="https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(base),
+      faceapi.nets.faceLandmark68Net.loadFromUri(base),
+      faceapi.nets.faceRecognitionNet.loadFromUri(base)
+    ]);
+    modelsReady=true;
+    $("modelStatus").textContent="Models ready";
+    $("modelStatus").style.background="#174b37";
+    ["startEnroll","startScan"].forEach(id=>$(id).disabled=false);
+    setMsg("enrollMessage","Models ready. Register consenting adults one at a time.");
+  }catch(e){
+    $("modelStatus").textContent="Model load failed";
+    setMsg("enrollMessage","Could not load recognition models. Check internet access and reload. "+e.message);
+  }
+}
+async function startVideo(video,facingMode){
+  const stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:facingMode},width:{ideal:1280},height:{ideal:720}}});
+  video.srcObject=stream; await video.play(); return stream;
+}
+function descriptorFromDetection(d){return Array.from(d.descriptor);}
+function averageDescriptors(arr){
+  const n=arr.length, out=new Array(arr[0].length).fill(0);
+  for(const a of arr)for(let i=0;i<a.length;i++)out[i]+=a[i]/n;
+  return out;
+}
+async function captureEnrollSample(){
+  const video=$("enrollVideo");
+  if(!enrollStream || video.readyState<2)return;
+  const d=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.55})).withFaceLandmarks().withFaceDescriptor();
+  if(!d){setMsg("enrollMessage","No clear face detected. Face the camera with good lighting and try again.");return;}
+  samples.push(descriptorFromDetection(d));
+  $("sampleCount").textContent=`(${samples.length}/3)`;
+  setMsg("enrollMessage",`Captured sample ${samples.length}/3. Slightly change your head angle for the next sample.`);
+  if(samples.length===3){
+    enrollDescriptor=averageDescriptors(samples);
+    $("saveStudent").disabled=false;
+    $("captureSample").disabled=true;
+    setMsg("enrollMessage","Three samples captured. Save the student profile.");
+  }
+}
+async function saveStudent(){
+  const name=$("studentName").value.trim(), id=$("studentId").value.trim();
+  if(!name||!id||!enrollDescriptor||!$("consent").checked){setMsg("enrollMessage","Enter name and ID, capture 3 samples, and confirm consent.");return;}
+  const key=studentKey(id);
+  if((await allRecords()).some(r=>r.key===key)){setMsg("enrollMessage","That student ID is already registered.");return;}
+  await putRecord({key,type:"student",name,id,descriptor:enrollDescriptor,createdAt:Date.now()});
+  samples=[];enrollDescriptor=null;
+  $("sampleCount").textContent="(0/3)";$("studentName").value="";$("studentId").value="";$("consent").checked=false;
+  $("saveStudent").disabled=true;$("captureSample").disabled=false;
+  setMsg("enrollMessage",`${name} registered on this device.`);
+  await renderAll();
+}
+async function startEnroll(){
+  try{
+    if(!navigator.mediaDevices?.getUserMedia)throw new Error("Camera access is unavailable. Open the GitHub Pages HTTPS URL in Chrome.");
+    samples=[];enrollDescriptor=null;$("sampleCount").textContent="(0/3)";
+    enrollStream=await startVideo($("enrollVideo"),"user");
+    $("captureSample").disabled=false;$("stopEnroll").disabled=false;
+    setMsg("enrollMessage","Camera ready. Capture 3 samples of this consenting adult.");
+  }catch(e){setMsg("enrollMessage",e.message);}
+}
+function stopEnroll(){stopStream(enrollStream);enrollStream=null;$("enrollVideo").srcObject=null;$("captureSample").disabled=true;$("stopEnroll").disabled=true;}
+function distance(a,b){let sum=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];sum+=d*d;}return Math.sqrt(sum);}
+async function bestMatch(descriptor,students){
+  const ranked=students.map(s=>({student:s,d:distance(descriptor,s.descriptor)})).sort((a,b)=>a.d-b.d);
+  if(!ranked.length)return null;
+  const first=ranked[0], second=ranked[1];
+  // Conservative gate: require a strong match and separation from the runner-up.
+  if(first.d>0.46 || (second && second.d-first.d<0.08))return {uncertain:true,distance:first.d};
+  return {student:first.student,distance:first.d};
+}
+async function markAttendance(student){
+  const key=attendanceKey(student.id);
+  if(recentlyMarked.has(key))return false;
+  const existing=await dbGet(key);
+  if(existing)return false;
+  const rec={key,type:"attendance",studentId:student.id,studentName:student.name,date:todayKey(),timestamp:Date.now(),method:"face-match"};
+  await putRecord(rec);recentlyMarked.add(key);
+  addEvent(`Marked present: ${student.name} (${student.id}) · ${timeText(rec.timestamp)}`);
+  await renderAttendance();
+  return true;
+}
+function dbGet(key){return new Promise((resolve,reject)=>{const r=db.transaction(STORE).objectStore(STORE).get(key);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+function addEvent(msg){const el=document.createElement("div");el.className="event";el.textContent=msg;$("scanEvents").prepend(el);while($("scanEvents").children.length>8)$("scanEvents").lastChild.remove();}
+async function scanFrame(){
+  if(!scanStream||$("scanVideo").readyState<2)return;
+  const video=$("scanVideo"), canvas=$("overlay");
+  const size={width:video.videoWidth,height:video.videoHeight};
+  if(!size.width)return;
+  canvas.width=size.width;canvas.height=size.height;
+  const detections=await faceapi.detectAllFaces(video,new faceapi.TinyFaceDetectorOptions({inputSize:416,scoreThreshold:.6})).withFaceLandmarks().withFaceDescriptors();
+  const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);
+  const students=await getStudents();
+  for(let i=0;i<detections.length;i++){
+    const det=detections[i], box=det.detection.box;
+    ctx.strokeStyle="#40e0a0";ctx.lineWidth=3;ctx.strokeRect(box.x,box.y,box.width,box.height);
+    const result=await bestMatch(descriptorFromDetection(det),students);
+    if(!result||result.uncertain){
+      ctx.fillStyle="#ffd166";ctx.font="18px sans-serif";ctx.fillText("Unverified",box.x,Math.max(22,box.y-8));
+      continue;
+    }
+    const s=result.student, key=s.id.toLowerCase();
+    const count=(streaks.get(key)||0)+1;streaks.set(key,count);
+    ctx.fillStyle="#40e0a0";ctx.font="18px sans-serif";ctx.fillText(s.name,box.x,Math.max(22,box.y-8));
+    if(count>=3){const did=await markAttendance(s);if(did)streaks.set(key,0);}
+  }
+  // Remove stale streaks when a face disappears from the frame.
+  const active=new Set();
+  for(const d of detections){const r=await bestMatch(descriptorFromDetection(d),students);if(r&&!r.uncertain)active.add(r.student.id.toLowerCase());}
+  for(const k of [...streaks.keys()])if(!active.has(k))streaks.delete(k);
+}
+async function startScan(){
+  try{
+    if(!(await getStudents()).length){setMsg("scanMessage","Register at least one consenting adult first.");return;}
+    scanStream=await startVideo($("scanVideo"),facing);
+    $("startScan").disabled=true;$("stopScan").disabled=false;$("switchCamera").disabled=false;
+    setMsg("scanMessage","Scanning. Keep faces visible and well lit. Ambiguous matches will not be marked.");
+    scanTimer=setInterval(()=>scanFrame().catch(e=>setMsg("scanMessage","Scanner error: "+e.message)),850);
+  }catch(e){setMsg("scanMessage",e.message);}
+}
+function stopScan(){
+  if(scanTimer)clearInterval(scanTimer);scanTimer=null;
+  stopStream(scanStream);scanStream=null;$("scanVideo").srcObject=null;
+  $("startScan").disabled=false;$("stopScan").disabled=true;$("switchCamera").disabled=true;
+  streaks.clear();setMsg("scanMessage","Scanner stopped.");
+  const c=$("overlay").getContext("2d");c.clearRect(0,0,$("overlay").width,$("overlay").height);
+}
+async function switchCamera(){facing=facing==="environment"?"user":"environment";$("cameraFacing").value=facing;stopScan();await startScan();}
+async function renderStudents(){
+  const students=await getStudents();$("studentTotal").textContent=students.length;
+  const root=$("studentList");root.replaceChildren();
+  for(const s of students){
+    const row=document.createElement("div");row.className="student";
+    const info=document.createElement("span");info.textContent=`${s.name} · ${s.id}`;
+    const del=document.createElement("button");del.className="danger";del.textContent="Delete";
+    del.onclick=async()=>{if(confirm(`Delete ${s.name} and their stored face descriptor?`)){await deleteRecord(s.key);await renderAll();}};
+    row.append(info,del);root.append(row);
+  }
+}
+async function renderAttendance(){
+  const records=(await getAttendance()).filter(r=>r.date===todayKey()).sort((a,b)=>b.timestamp-a.timestamp);
+  const body=$("attendanceRows");body.replaceChildren();
+  for(const r of records){const tr=document.createElement("tr");[timeText(r.timestamp),r.studentName,r.studentId,"Present"].forEach(v=>{const td=document.createElement("td");td.textContent=v;tr.append(td);});body.append(tr);}
+}
+async function renderAll(){await renderStudents();await renderAttendance();}
+function csvEscape(v){return '"'+String(v??"").replace(/"/g,'""')+'"';}
+async function exportCsv(all=false){
+  const records=(await getAttendance()).filter(r=>all||r.date===todayKey()).sort((a,b)=>a.timestamp-b.timestamp);
+  const rows=[["Date","Time","Student","Student ID","Status"],...records.map(r=>[r.date,timeText(r.timestamp),r.studentName,r.studentId,"Present"])];
+  const blob=new Blob([rows.map(row=>row.map(csvEscape).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=all?"classvision-all-attendance.csv":`classvision-${todayKey()}.csv`;a.click();URL.revokeObjectURL(url);
+}
+async function clearToday(){if(!confirm("Delete today's attendance records?"))return;for(const r of await getAttendance())if(r.date===todayKey())await deleteRecord(r.key);await renderAttendance();}
+async function clearData(){if(!confirm("Permanently delete all registered students, face descriptors and attendance records from this browser?"))return;for(const r of await allRecords())await deleteRecord(r.key);recentlyMarked.clear();await renderAll();setMsg("enrollMessage","All local data cleared.");}
+
+async function init(){
+  try{db=await openDB();await renderAll();}catch(e){setMsg("enrollMessage","Local database error: "+e.message);}
+  $("startEnroll").onclick=startEnroll;$("captureSample").onclick=captureEnrollSample;$("saveStudent").onclick=saveStudent;$("stopEnroll").onclick=stopEnroll;
+  $("startScan").onclick=startScan;$("stopScan").onclick=stopScan;$("switchCamera").onclick=switchCamera;
+  $("cameraFacing").onchange=e=>{facing=e.target.value;if(scanStream)switchCamera();};
+  $("exportCsv").onclick=()=>exportCsv(false);$("exportAll").onclick=()=>exportCsv(true);$("clearToday").onclick=clearToday;$("clearData").onclick=clearData;
+  if(!window.isSecureContext)setMsg("enrollMessage","Open the published GitHub Pages HTTPS address. Camera access will not work on an insecure page.");
+  if(window.faceapi)loadModels();else setMsg("enrollMessage","Recognition library did not load. Check internet and reload.");
+}
+window.addEventListener("DOMContentLoaded",init);
+})();

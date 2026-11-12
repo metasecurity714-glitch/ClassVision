@@ -1,93 +1,70 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ClassVision — Face Attendance</title>
-<style>
-:root{--bg:#0b1020;--panel:#141c31;--panel2:#1b2741;--ink:#eef3ff;--muted:#a7b4ce;--line:#2b3958;--accent:#78a6ff;--good:#40d6a0;--bad:#ff7d89}
-*{box-sizing:border-box}body{margin:0;background:linear-gradient(140deg,#0b1020,#111b31);color:var(--ink);font:15px system-ui,Segoe UI,Arial}
-.wrap{max-width:1100px;margin:auto;padding:22px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:20px}.logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#78a6ff,#9d83ff);display:grid;place-items:center;color:#081126;font-weight:900;font-size:20px}.brand h1{font-size:22px;margin:0}.muted{color:var(--muted)}.card{background:rgba(20,28,49,.96);border:1px solid var(--line);border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 12px 35px #0002}.hidden{display:none!important}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}.stat{background:var(--panel2);padding:17px;border-radius:14px}.stat strong{display:block;font-size:27px;margin-top:5px}.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}label{display:block;color:var(--muted);font-size:13px;margin:12px 0 6px}input,select{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0c1427;color:var(--ink);font:inherit}button{border:0;border-radius:11px;padding:11px 15px;background:var(--accent);color:#071126;font-weight:700;cursor:pointer}button.secondary{background:#293957;color:var(--ink)}button.danger{background:#592c3a;color:#ffe9ec}button:disabled{opacity:.5;cursor:not-allowed}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}.tabs button.active{outline:2px solid var(--accent);background:#293957;color:var(--ink)}.view{display:none}.view.active{display:block}video{width:100%;max-height:360px;background:#050914;border-radius:13px;object-fit:cover}.cameraBox{max-width:620px}.status{padding:11px 13px;border-radius:10px;background:#202d48;margin:12px 0}.ok{color:var(--good)}.err{color:var(--bad)}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}th,td{text-align:left;padding:10px;border-bottom:1px solid var(--line)}th{color:var(--muted)}.tablewrap{overflow:auto}.small{font-size:12px}.right{margin-left:auto}
-@media(max-width:600px){.wrap{padding:14px}.card{padding:15px}.brand h1{font-size:19px}}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <title>ClassVision — Face Attendance</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script defer src="app.js"></script>
 </head>
-<body><main class="wrap">
-<header class="brand"><div class="logo">CV</div><div><h1>ClassVision</h1><div class="muted small">Face recognition attendance · Local browser edition</div></div></header>
+<body>
+<header class="top">
+  <div><div class="brand">ClassVision</div><div class="sub">Consent-based face attendance · local browser storage</div></div>
+  <span id="modelStatus" class="status">Loading recognition models…</span>
+</header>
+<main>
+  <section class="panel">
+    <h2>1. Register students</h2>
+    <p class="hint">For adults who have explicitly agreed to face enrollment. Register each person on this device. Use clear, front-facing samples in even lighting.</p>
+    <div class="formgrid">
+      <label>Student name<input id="studentName" maxlength="70" placeholder="e.g. A. Kumar"></label>
+      <label>Student ID<input id="studentId" maxlength="30" placeholder="e.g. CSE-001"></label>
+    </div>
+    <label class="consent"><input type="checkbox" id="consent"> I confirm this adult has been informed and has explicitly consented to face-based attendance.</label>
+    <div class="actions">
+      <button id="startEnroll" disabled>Start camera for registration</button>
+      <button id="captureSample" disabled>Capture sample <span id="sampleCount">(0/3)</span></button>
+      <button id="saveStudent" disabled>Save student</button>
+      <button id="stopEnroll" class="secondary" disabled>Stop camera</button>
+    </div>
+    <p id="enrollMessage" class="message" aria-live="polite">Waiting for models to load.</p>
+    <video id="enrollVideo" autoplay muted playsinline class="video smallvideo"></video>
+  </section>
 
-<section id="setup" class="card hidden">
-<h2>Create your ClassVision login</h2><p class="muted">Create a unique username and a password for this browser. This is a basic client-side gate, not secure account authentication.</p>
-<label>Username</label><input id="newUser" autocomplete="username" placeholder="Choose a username">
-<label>Password</label><input id="newPass" type="password" autocomplete="new-password" placeholder="At least 8 characters">
-<label>Confirm password</label><input id="confirmPass" type="password" autocomplete="new-password">
-<div class="row" style="margin-top:16px"><button id="createLogin">Create login</button></div><div id="setupMsg" class="status"></div>
-</section>
-<section id="login" class="card hidden">
-<h2>Welcome back</h2><p class="muted">Sign in to open your attendance dashboard.</p>
-<label>Username</label><input id="loginUser" autocomplete="username">
-<label>Password</label><input id="loginPass" type="password" autocomplete="current-password">
-<div class="row" style="margin-top:16px"><button id="signIn">Sign in</button></div><div id="loginMsg" class="status"></div>
-</section>
+  <section class="panel">
+    <h2>2. Live attendance scanner</h2>
+    <p class="hint">High-confidence matches are marked after repeated frame confirmation. Uncertain matches are not marked automatically. Camera frames are processed in this browser and are not uploaded by this app.</p>
+    <div class="actions">
+      <button id="startScan" disabled>Start attendance camera</button>
+      <button id="switchCamera" class="secondary" disabled>Switch front / back</button>
+      <button id="stopScan" class="secondary" disabled>Stop scanner</button>
+      <label class="inline">Camera<select id="cameraFacing"><option value="environment">Back camera</option><option value="user">Front camera</option></select></label>
+    </div>
+    <video id="scanVideo" autoplay muted playsinline class="video"></video>
+    <canvas id="overlay"></canvas>
+    <p id="scanMessage" class="message" aria-live="polite">Scanner stopped.</p>
+    <div id="scanEvents" class="events"></div>
+  </section>
 
-<div id="app" class="hidden">
-<div class="row"><div><h2 style="margin:0">Attendance dashboard</h2><div class="muted small" id="hello"></div></div><button class="secondary right" id="logout">Log out</button></div>
-<div class="grid">
-<div class="stat"><span class="muted">Registered students</span><strong id="totalStudents">0</strong></div>
-<div class="stat"><span class="muted">Marked present today</span><strong id="presentToday">0</strong></div>
-<div class="stat"><span class="muted">Attendance records</span><strong id="totalRecords">0</strong></div>
-</div>
-<nav class="tabs">
-<button class="active" data-tab="enroll">Enroll student</button><button data-tab="scan">Face scanner</button><button data-tab="records">Attendance records</button><button data-tab="students">Students</button><button data-tab="privacy">Privacy & settings</button>
-</nav>
+  <section class="panel">
+    <h2>3. Attendance records</h2>
+    <div class="actions">
+      <button id="exportCsv" class="secondary">Export today's CSV</button>
+      <button id="exportAll" class="secondary">Export all CSV</button>
+      <button id="clearToday" class="danger">Clear today's attendance</button>
+    </div>
+    <div class="tablewrap"><table><thead><tr><th>Time</th><th>Student</th><th>ID</th><th>Status</th></tr></thead><tbody id="attendanceRows"></tbody></table></div>
+  </section>
 
-<section class="view active" id="enroll">
-<div class="card"><h3>Register a student</h3><p class="muted">Get the student's permission before collecting face data. Capture several samples in good, even lighting.</p>
-<div class="grid"><div><label>Full name</label><input id="studentName" placeholder="Student name"></div><div><label>Roll number (must be unique)</label><input id="studentRoll" placeholder="e.g. 24CSE001"></div><div><label>Department / class</label><input id="studentDept" placeholder="e.g. CSE"></div></div>
-<label class="row" style="margin-top:12px"><input id="consent" type="checkbox" style="width:auto"> Student has agreed to face data being stored on this device.</label>
-<div class="cameraBox"><video id="enrollVideo" autoplay muted playsinline></video><div class="row" style="margin-top:10px"><button id="startEnrollCam" class="secondary">Start camera</button><button id="captureFace" disabled>Capture face sample (0/5)</button><button id="stopEnrollCam" class="secondary">Stop camera</button></div><div id="enrollStatus" class="status">Load models and start the camera to begin.</div></div>
-<div class="row"><button id="saveStudent" disabled>Save student</button><button id="resetEnroll" class="secondary">Reset form</button></div>
-</div></section>
-
-<section class="view" id="scan"><div class="card"><h3>Live attendance scanner</h3><p class="muted">Choose a class/session label, start the camera, and let one student face the camera at a time. Recognition is performed in this browser.</p>
-<label>Subject / session</label><input id="sessionName" placeholder="e.g. Applied Chemistry">
-<div class="cameraBox"><video id="scanVideo" autoplay muted playsinline></video><div class="row" style="margin-top:10px"><button id="startScanCam" class="secondary">Start scanner</button><button id="stopScanCam" class="secondary">Stop scanner</button></div><div id="scanStatus" class="status">Ready. Models load when the page opens.</div></div>
-<div class="grid"><div class="stat"><span class="muted">Present in this session</span><strong id="sessionPresent">0</strong></div><div class="stat"><span class="muted">Session</span><strong id="sessionLabel" style="font-size:18px">Not started</strong></div></div>
-</div></section>
-
-<section class="view" id="records"><div class="card"><div class="row"><h3>Attendance records</h3><button id="exportCsv" class="right">Export CSV</button></div><div class="tablewrap"><table><thead><tr><th>Date & time</th><th>Name</th><th>Roll no.</th><th>Subject</th><th>Status</th></tr></thead><tbody id="recordsBody"></tbody></table></div></div></section>
-<section class="view" id="students"><div class="card"><h3>Registered students</h3><div class="tablewrap"><table><thead><tr><th>Name</th><th>Roll no.</th><th>Department</th><th>Samples</th><th>Action</th></tr></thead><tbody id="studentsBody"></tbody></table></div></div></section>
-<section class="view" id="privacy"><div class="card"><h3>Privacy & settings</h3><p class="muted">Face descriptors and attendance records are stored in this browser's local storage. They are not uploaded to a server by this app. Clearing browser site data may erase them. Anyone with access to this browser profile may be able to access the data.</p><div class="row"><button class="danger" id="deleteAllFaces">Delete all face/student data</button><button class="danger" id="deleteRecords">Delete attendance records</button></div><hr style="border-color:var(--line);margin:20px 0"><h3>Model status</h3><div id="modelStatus" class="status">Loading face recognition models…</div><p class="small muted">Camera access requires HTTPS (GitHub Pages is HTTPS) or localhost. Face matching is approximate and should be checked by a teacher; do not use it as the sole basis for consequential decisions.</p></div></section>
-</div>
+  <section class="panel">
+    <h2>Registered students <span id="studentTotal" class="count">0</span></h2>
+    <div id="studentList" class="students"></div>
+    <p class="hint warning">Privacy: this browser stores face descriptors (biometric data) and attendance records on this device. Anyone with access to this browser profile may be able to access them. Do not use a shared/public device. Use the Clear local data button before transferring or disposing of the device.</p>
+    <button id="clearData" class="danger">Clear all local student and attendance data</button>
+  </section>
 </main>
-<script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-<script>
-const $=id=>document.getElementById(id);
-const DBKEY='classvision_data_v1', AUTHKEY='classvision_auth_v1';
-let data={students:[],records:[]}, modelsReady=false, enrollStream=null,scanStream=null,samples=[],scanTimer=null,lastMarked={},sessionId='';
-const MODEL_URL='https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-function loadData(){try{data=JSON.parse(localStorage.getItem(DBKEY))||data}catch(e){data={students:[],records:[]}}}
-function saveData(){localStorage.setItem(DBKEY,JSON.stringify(data));refreshUI()}
-function auth(){try{return JSON.parse(localStorage.getItem(AUTHKEY))}catch(e){return null}}
-function showAuth(){const a=auth();$('setup').classList.toggle('hidden',!!a);$('login').classList.toggle('hidden',!a);$('app').classList.add('hidden')}
-$('createLogin').onclick=()=>{let u=$('newUser').value.trim(),p=$('newPass').value,c=$('confirmPass').value;if(u.length<3){$('setupMsg').textContent='Username must be at least 3 characters.';return}if(p.length<8){$('setupMsg').textContent='Use at least 8 characters for the password.';return}if(p!==c){$('setupMsg').textContent='Passwords do not match.';return}localStorage.setItem(AUTHKEY,JSON.stringify({username:u,password:p}));$('setupMsg').textContent='Login created. Please sign in.';showAuth()};
-$('signIn').onclick=()=>{let a=auth();if(a&&$('loginUser').value.trim()===a.username&&$('loginPass').value===a.password){$('loginMsg').textContent='Signed in.';$('login').classList.add('hidden');$('app').classList.remove('hidden');$('hello').textContent='Signed in as '+a.username;loadData();refreshUI()}else $('loginMsg').textContent='Incorrect username or password.'};
-$('logout').onclick=()=>{stopCamera('enroll');stopCamera('scan');$('app').classList.add('hidden');showAuth()};
-async function loadModels(){try{if(!window.faceapi)throw Error('Face recognition library did not load. Check internet connection and refresh.');await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)]);modelsReady=true;$('modelStatus').textContent='Face recognition models loaded successfully.';$('modelStatus').className='status ok';$('enrollStatus').textContent='Models ready. Start the camera to capture samples.'}catch(e){$('modelStatus').textContent='Could not load models: '+e.message+' — check internet and reload.';$('modelStatus').className='status err';$('enrollStatus').textContent='Model loading failed. '+e.message}}
-function refreshUI(){if(!$('app')||$('app').classList.contains('hidden'))return;$('totalStudents').textContent=data.students.length;let today=new Date().toLocaleDateString();$('presentToday').textContent=data.records.filter(r=>new Date(r.time).toLocaleDateString()===today).length;$('totalRecords').textContent=data.records.length;$('recordsBody').innerHTML=data.records.slice().reverse().map(r=>`<tr><td>${esc(new Date(r.time).toLocaleString())}</td><td>${esc(r.name)}</td><td>${esc(r.roll)}</td><td>${esc(r.subject)}</td><td>Present</td></tr>`).join('')||'<tr><td colspan="5">No records yet.</td></tr>';$('studentsBody').innerHTML=data.students.map((s,i)=>`<tr><td>${esc(s.name)}</td><td>${esc(s.roll)}</td><td>${esc(s.dept)}</td><td>${s.descriptors.length}</td><td><button class="danger" onclick="removeStudent('${encodeURIComponent(s.roll)}')">Delete</button></td></tr>`).join('')||'<tr><td colspan="5">No students registered.</td></tr>'}
-function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-window.removeStudent=roll=>{if(confirm('Delete this student and their face descriptors?')){let r=decodeURIComponent(roll);data.students=data.students.filter(s=>s.roll!==r);saveData()}}
-document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===b.dataset.tab));if(b.dataset.tab==='records'||b.dataset.tab==='students')refreshUI()});
-async function startCamera(which){if(!modelsReady){alert('Face models are not ready yet. Check model status and refresh.');return}try{let stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});if(which==='enroll'){enrollStream=stream;$('enrollVideo').srcObject=stream}else{scanStream=stream;$('scanVideo').srcObject=stream;sessionId=$('sessionName').value.trim()||'General';$('sessionLabel').textContent=sessionId;$('scanStatus').textContent='Scanner running. Looking for one face at a time.';scanTimer=setInterval(scanFrame,1200)}}catch(e){alert('Camera could not start: '+e.message+'. Allow camera permission and use HTTPS.')}}
-function stopCamera(which){if(which==='enroll'&&enrollStream){enrollStream.getTracks().forEach(t=>t.stop());enrollStream=null;$('enrollVideo').srcObject=null}if(which==='scan'&&scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null;$('scanVideo').srcObject=null;if(scanTimer)clearInterval(scanTimer);scanTimer=null}}
-$('startEnrollCam').onclick=()=>startCamera('enroll');$('stopEnrollCam').onclick=()=>stopCamera('enroll');$('startScanCam').onclick=()=>startCamera('scan');$('stopScanCam').onclick=()=>stopCamera('scan');
-async function descriptor(video){let result=await faceapi.detectSingleFace(video,new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:.5})).withFaceLandmarks().withFaceDescriptor();return result?.descriptor?Array.from(result.descriptor):null}
-$('captureFace').onclick=async()=>{try{let d=await descriptor($('enrollVideo'));if(!d){$('enrollStatus').textContent='No clear face detected. Face the camera with good lighting.';return}samples.push(d);$('captureFace').textContent=`Capture face sample (${samples.length}/5)`;$('saveStudent').disabled=samples.length<3;$('enrollStatus').textContent=`Captured sample ${samples.length}. ${samples.length<5?'Capture another sample with a slightly different angle.':'Five samples captured. You can save the student.'}`}catch(e){$('enrollStatus').textContent='Capture error: '+e.message}};
-$('captureFace').disabled=false;
-$('saveStudent').onclick=()=>{let name=$('studentName').value.trim(),roll=$('studentRoll').value.trim(),dept=$('studentDept').value.trim();if(!name||!roll||!dept){alert('Fill in name, roll number and department.');return}if(!$('consent').checked){alert('Please confirm that the student has agreed.');return}if(data.students.some(s=>s.roll.toLowerCase()===roll.toLowerCase())){alert('That roll number is already registered.');return}if(samples.length<3){alert('Capture at least 3 face samples.');return}data.students.push({name,roll,dept,descriptors:samples.slice()});saveData();$('enrollStatus').textContent='Student saved on this device.';resetEnroll()};
-function resetEnroll(){samples=[];$('studentName').value='';$('studentRoll').value='';$('studentDept').value='';$('consent').checked=false;$('captureFace').textContent='Capture face sample (0/5)';$('saveStudent').disabled=true}
-$('resetEnroll').onclick=resetEnroll;
-function distance(a,b){let sum=0;for(let i=0;i<a.length;i++)sum+=(a[i]-b[i])**2;return Math.sqrt(sum)}
-async function scanFrame(){if(!scanStream||!modelsReady)return;try{let d=await descriptor($('scanVideo'));if(!d){$('scanStatus').textContent='No face detected. Look toward the camera.';return}let best=null,score=Infinity;for(let s of data.students)for(let sd of s.descriptors){let v=distance(d,sd);if(v<score){score=v;best=s}}if(best&&score<0.52){let key=best.roll+'|'+sessionId+'|'+new Date().toLocaleDateString();if(lastMarked[key])return;let exists=data.records.some(r=>r.roll===best.roll&&r.subject===sessionId&&new Date(r.time).toLocaleDateString()===new Date().toLocaleDateString());if(exists){lastMarked[key]=true;$('scanStatus').textContent=best.name+' is already marked present for this session.';return}lastMarked[key]=true;data.records.push({name:best.name,roll:best.roll,subject:sessionId,time:new Date().toISOString()});saveData();$('sessionPresent').textContent=data.records.filter(r=>r.subject===sessionId&&new Date(r.time).toLocaleDateString()===new Date().toLocaleDateString()).length;$('scanStatus').innerHTML='<span class="ok">Present marked:</span> '+esc(best.name)+' · '+esc(best.roll)}else $('scanStatus').textContent='Face not recognized. Ask the student to register first.'}catch(e){$('scanStatus').textContent='Scanner error: '+e.message}}
-$('exportCsv').onclick=()=>{let rows=[['Date & time','Name','Roll no.','Subject','Status'],...data.records.map(r=>[new Date(r.time).toLocaleString(),r.name,r.roll,r.subject,'Present'])];let csv=rows.map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='classvision-attendance.csv';a.click();URL.revokeObjectURL(a.href)};
-$('deleteAllFaces').onclick=()=>{if(confirm('Delete all registered students and their face descriptors?')){data.students=[];saveData();alert('Student and face data deleted.')}};
-$('deleteRecords').onclick=()=>{if(confirm('Delete all attendance records?')){data.records=[];saveData()}};
-loadData();showAuth();loadModels();
-</script></body></html>
+<footer>ClassVision · GitHub Pages build · HTTPS camera access required</footer>
+</body>
+</html>
